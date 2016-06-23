@@ -18,11 +18,14 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import org.bytedeco.javacpp.Loader;
+import org.bytedeco.javacpp.Pointer;
 import static org.bytedeco.javacpp.helper.opencv_objdetect.cvHaarDetectObjects;
 import org.bytedeco.javacpp.opencv_core;
+import org.bytedeco.javacpp.opencv_core.Buffer;
 import static org.bytedeco.javacpp.opencv_core.CV_32SC1;
 import org.bytedeco.javacpp.opencv_core.CvMemStorage;
 import org.bytedeco.javacpp.opencv_core.CvRect;
@@ -46,6 +49,7 @@ import static org.bytedeco.javacpp.opencv_imgcodecs.CV_LOAD_IMAGE_GRAYSCALE;
 import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
 import static org.bytedeco.javacpp.opencv_imgproc.CV_BGR2GRAY;
 import static org.bytedeco.javacpp.opencv_imgproc.cvResize;
+import static org.bytedeco.javacpp.opencv_imgproc.cvtColor;
 import org.bytedeco.javacpp.opencv_objdetect;
 import static org.bytedeco.javacpp.opencv_objdetect.CV_HAAR_DO_ROUGH_SEARCH;
 import static org.bytedeco.javacpp.opencv_objdetect.CV_HAAR_FIND_BIGGEST_OBJECT;
@@ -53,6 +57,7 @@ import org.bytedeco.javacpp.opencv_objdetect.CascadeClassifier;
 import org.bytedeco.javacpp.opencv_objdetect.CvHaarClassifierCascade;
 import org.bytedeco.javacpp.opencv_videoio.VideoCapture;
 import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.FrameConverter;
 import org.bytedeco.javacv.Java2DFrameConverter;
 import org.bytedeco.javacv.OpenCVFrameConverter;
 
@@ -69,6 +74,7 @@ public class Programa extends JFrame implements ActionListener {
     private CvMemStorage storage = null;
     private CvSeq faces = null;
     private FaceRecognizer faceRecognizer;
+    private JCheckBox reconhece;
 
     public Programa() {
         super("Face");
@@ -76,8 +82,10 @@ public class Programa extends JFrame implements ActionListener {
         initRecognizer();
         setLayout(new FlowLayout());
         JButton btCaptura = new JButton("Caputra");
+        reconhece = new JCheckBox("Reconhece", false);
         btCaptura.addActionListener(this);
         add(btCaptura);
+        add(reconhece);
         labelImagem = new JLabel("Antes");
 
         add(labelImagem);
@@ -157,13 +165,15 @@ public class Programa extends JFrame implements ActionListener {
 
                 BufferedImage image2 = paintConverter.getBufferedImage(finalImage);
                 labelImagem2.setIcon(new ImageIcon(image2));
-                byte[] pixels = ((DataBufferByte) image2.getRaster().getDataBuffer()).getData();
-                Mat imgMat = new Mat();
-                //imgMat.put(0, 0, pixels);
-
-                int predictedLabel = faceRecognizer.predict(imgMat);
-                System.out.println("Predicted label: " + predictedLabel);
-
+                OpenCVFrameConverter.ToMat converterToMat = new OpenCVFrameConverter.ToMat();
+                Mat convert = converterToMat.convert(finalImage);
+                System.out.println("--------" + convert.arrayHeight() + "x" + mat.arrayWidth() + "x" + mat.arrayDepth());
+                if (reconhece.isSelected()) {
+                    Mat m2=new Mat();
+                    cvtColor(convert, m2,convert.arrayDepth());
+                    int predict = faceRecognizer.predict(m2);
+                    System.out.println("Predicted label: " + predict);
+                }
             }
             faces = null;
         }
@@ -171,12 +181,10 @@ public class Programa extends JFrame implements ActionListener {
 
     }
 
-    
-
-public static Mat bufferedImageToMat(BufferedImage bi) {
+    public static Mat bufferedImageToMat(BufferedImage bi) {
         Mat mat = new Mat(bi.getHeight(), bi.getWidth(), 3);
         byte[] data = ((DataBufferByte) bi.getRaster().getDataBuffer()).getData();
-        //mat.put(0, 0, data);
+        mat.data().put(data);
         return mat;
     }
 
