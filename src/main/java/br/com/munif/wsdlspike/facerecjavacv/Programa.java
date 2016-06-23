@@ -44,6 +44,7 @@ import static org.bytedeco.javacpp.opencv_core.cvLoad;
 import static org.bytedeco.javacpp.opencv_core.cvSetImageROI;
 import org.bytedeco.javacpp.opencv_face;
 import org.bytedeco.javacpp.opencv_face.FaceRecognizer;
+import static org.bytedeco.javacpp.opencv_face.createEigenFaceRecognizer;
 import static org.bytedeco.javacpp.opencv_face.createFisherFaceRecognizer;
 import static org.bytedeco.javacpp.opencv_imgcodecs.CV_LOAD_IMAGE_GRAYSCALE;
 import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
@@ -78,7 +79,7 @@ public class Programa extends JFrame implements ActionListener {
 
     public Programa() {
         super("Face");
-        initClassifier();
+        
         initRecognizer();
         setLayout(new FlowLayout());
         JButton btCaptura = new JButton("Caputra");
@@ -94,6 +95,7 @@ public class Programa extends JFrame implements ActionListener {
         pack();
 
         setDefaultCloseOperation(EXIT_ON_CLOSE);
+        initClassifier();
     }
 
     @Override
@@ -160,19 +162,24 @@ public class Programa extends JFrame implements ActionListener {
                 cvCopy(colorIPl, cropped);
                 IplImage resizeImage = IplImage.create(75, 100, cropped.depth(), cropped.nChannels());
                 cvResize(cropped, resizeImage);
+//                System.out.println("---->"+resizeImage.width()+"x"+resizeImage.height()+"x"+resizeImage.depth());
 
                 Frame finalImage = grabberConverter.convert(resizeImage);
-
+//                System.out.println("--------" + finalImage.imageWidth + "x" + finalImage.imageHeight + "x" + finalImage.imageDepth);
+                
                 BufferedImage image2 = paintConverter.getBufferedImage(finalImage);
                 labelImagem2.setIcon(new ImageIcon(image2));
+
+
                 OpenCVFrameConverter.ToMat converterToMat = new OpenCVFrameConverter.ToMat();
                 Mat convert = converterToMat.convert(finalImage);
-                System.out.println("--------" + convert.arrayHeight() + "x" + mat.arrayWidth() + "x" + mat.arrayDepth());
+                System.out.println("-----C---" + convert.arrayWidth() + "x" + mat.arrayHeight() + "x" + mat.arrayDepth());
                 if (reconhece.isSelected()) {
-                    Mat m2=new Mat();
-                    cvtColor(convert, m2,convert.arrayDepth());
-                    int predict = faceRecognizer.predict(m2);
-                    System.out.println("Predicted label: " + predict);
+                    Mat m2=new Mat(convert);
+                    
+                    System.out.println("----m2----" + m2.arrayWidth() + "x" + m2.arrayHeight() + "x" + m2.arrayDepth());
+                    //int predict = faceRecognizer.predict(m2);
+                    //System.out.println("Predicted label: " + predict);
                 }
             }
             faces = null;
@@ -210,12 +217,14 @@ public class Programa extends JFrame implements ActionListener {
     }
 
     private void initRecognizer() {
-        File root = new File("/home/munif/caras");
+        //File root = new File("/home/munif/caras");
+        File root = new File("/Users/munif/Downloads/BioID-FaceDatabase-V1.2/");
+        
         FilenameFilter filtro = new FilenameFilter() {
             @Override
             public boolean accept(File dir, String name) {
                 name = name.toLowerCase();
-                return name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".jpeg");
+                return name.endsWith(".jpg") || name.endsWith(".pgm") || name.endsWith(".jpeg");
             }
         };
         File[] imageFiles = root.listFiles(filtro);
@@ -226,10 +235,17 @@ public class Programa extends JFrame implements ActionListener {
             Mat img = imread(image.getAbsolutePath(), CV_LOAD_IMAGE_GRAYSCALE);
             caras.put(counter, img);
             counter++;
+            System.out.printf("%05d ",counter);
+            if (counter%20==0){
+                System.out.println("");
+            }
         }
-        faceRecognizer = createFisherFaceRecognizer();
+        //faceRecognizer = createFisherFaceRecognizer();
+        //faceRecognizer = createEigenFaceRecognizer();
+// FaceRecognizer faceRecognizer = createLBPHFaceRecognizer()
+      //  faceRecognizer = createFisherFaceRecognizer();
         Mat labels = new Mat(imageFiles.length, 1, CV_32SC1);
-        faceRecognizer.train(caras, labels);
+        //faceRecognizer.train(caras, labels);
     }
 
 }
