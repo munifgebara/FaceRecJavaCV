@@ -1,16 +1,23 @@
 package br.com.munif.wsdlspike.facerecjavacv;
 
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Graphics2D;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.IntBuffer;
 import java.util.HashMap;
@@ -27,6 +34,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JTextField;
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.Pointer;
 import static org.bytedeco.javacpp.helper.opencv_objdetect.cvHaarDetectObjects;
@@ -69,6 +77,14 @@ import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.FrameConverter;
 import org.bytedeco.javacv.Java2DFrameConverter;
 import org.bytedeco.javacv.OpenCVFrameConverter;
+import static org.bytedeco.javacpp.opencv_core.cvCopy;
+import static org.bytedeco.javacpp.opencv_core.cvLoad;
+import static org.bytedeco.javacpp.opencv_face.createEigenFaceRecognizer;
+import static org.bytedeco.javacpp.opencv_face.createFisherFaceRecognizer;
+import static org.bytedeco.javacpp.opencv_face.createLBPHFaceRecognizer;
+import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
+import static org.bytedeco.javacpp.opencv_imgproc.cvResize;
+import static org.bytedeco.javacpp.opencv_imgproc.cvtColor;
 
 public class Programa extends JFrame implements ActionListener {
 
@@ -77,6 +93,7 @@ public class Programa extends JFrame implements ActionListener {
     private JLabel labelImagem;
     private JLabel labelImagem2;
     private JLabel labelImagem3;
+    private JTextField tfEmail;
     private VideoCapture capture;
     private int absoluteFaceSize;
     private Mat destino;
@@ -87,6 +104,8 @@ public class Programa extends JFrame implements ActionListener {
     private JCheckBox reconhece;
     private Map<Integer, String> imagens;
     private BufferedImage image2;
+
+    private String lastImage = "NONE";
 
     public Programa() {
         super("Face");
@@ -104,20 +123,23 @@ public class Programa extends JFrame implements ActionListener {
         add(labelImagem2);
         labelImagem3 = new JLabel("Quem");
         add(labelImagem3);
-
+        setPreferredSize(new Dimension(800, 600));
+        tfEmail = new JTextField(50);
+        add(tfEmail);
         pack();
 
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         initClassifier();
         initRecognizer();
         initCapture();
+        initServer();
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
         if (image2 != null) {
             try {
-                ImageIO.write(image2, "JPG", new File("/home/munif/Desktop/caras/" + System.currentTimeMillis() + ".jpg"));
+                ImageIO.write(image2, "JPG", new File("/home/munif/Desktop/caras/" + tfEmail.getText() + "_" + System.currentTimeMillis() + ".jpg"));
             } catch (IOException ex) {
                 Logger.getLogger(Programa.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -198,9 +220,9 @@ public class Programa extends JFrame implements ActionListener {
                     double db[] = new double[1];
                     faceRecognizer.predict(m2, ib, db);
                     //faceRecognizer.
-                    System.out.println("Predicted label: " + ib.length + " " + db.length);
                     setTitle("" + db[0]);
                     labelImagem3.setIcon(new ImageIcon(imagens.get(ib[0])));
+                    lastImage = "" + imagens.get(ib[0]);
                 }
             }
             faces = null;
@@ -279,6 +301,45 @@ public class Programa extends JFrame implements ActionListener {
         //faceRecognizer = createFisherFaceRecognizer();
 
         faceRecognizer.train(caras, labels);
+    }
+
+    public void initServer() {
+        try {
+            HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
+            server.createContext("/id", new JsonHandler());
+            server.createContext("/image", new ImageHandler());
+            server.setExecutor(null); // creates a default executor
+            server.start();
+        } catch (IOException ex) {
+            Logger.getLogger(Programa.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    class JsonHandler implements HttpHandler {
+
+        @Override
+        public void handle(HttpExchange he) throws IOException {
+            String response = "{\"image\":\"" + lastImage + "\"}";
+            he.sendResponseHeaders(200, response.getBytes().length);
+            OutputStream os = he.getResponseBody();
+            os.write(response.getBytes());
+            os.close();
+        }
+    }
+
+    class ImageHandler implements HttpHandler {
+
+        @Override
+        public void handle(HttpExchange he) throws IOException {
+            ByteArrayOutputStream baos=new ByteArrayOutputStream();
+            ImageIO.write(image2, lastImage, baos);
+            he.getResponseHeaders().set("Content-Type","image/jpeg");
+            he.sendResponseHeaders(200, baos.size());
+            OutputStream os = he.getResponseBody();
+            os.write(baos.toByteArray());
+            os.flush();
+            os.close();
+        }
     }
 
 }
