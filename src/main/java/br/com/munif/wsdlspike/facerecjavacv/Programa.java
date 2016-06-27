@@ -14,6 +14,7 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -36,55 +37,35 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JTextField;
 import org.bytedeco.javacpp.Loader;
-import org.bytedeco.javacpp.Pointer;
 import static org.bytedeco.javacpp.helper.opencv_objdetect.cvHaarDetectObjects;
-import org.bytedeco.javacpp.indexer.DoubleBufferIndexer;
 import org.bytedeco.javacpp.opencv_core;
-import org.bytedeco.javacpp.opencv_core.Buffer;
 import static org.bytedeco.javacpp.opencv_core.CV_32SC1;
 import org.bytedeco.javacpp.opencv_core.CvMemStorage;
 import org.bytedeco.javacpp.opencv_core.CvRect;
 import org.bytedeco.javacpp.opencv_core.CvSeq;
-import org.bytedeco.javacpp.opencv_core.CvType;
 import org.bytedeco.javacpp.opencv_core.IplImage;
 import org.bytedeco.javacpp.opencv_core.Mat;
 import org.bytedeco.javacpp.opencv_core.MatVector;
-import org.bytedeco.javacpp.opencv_core.Rect;
-import org.bytedeco.javacpp.opencv_core.Size;
-import static org.bytedeco.javacpp.opencv_core.cvCopy;
 import static org.bytedeco.javacpp.opencv_core.cvCreateImage;
 import static org.bytedeco.javacpp.opencv_core.cvGetSeqElem;
 import static org.bytedeco.javacpp.opencv_core.cvGetSize;
-import static org.bytedeco.javacpp.opencv_core.cvLoad;
 import static org.bytedeco.javacpp.opencv_core.cvSetImageROI;
-import org.bytedeco.javacpp.opencv_face;
 import org.bytedeco.javacpp.opencv_face.FaceRecognizer;
-import static org.bytedeco.javacpp.opencv_face.createEigenFaceRecognizer;
-import static org.bytedeco.javacpp.opencv_face.createFisherFaceRecognizer;
-import static org.bytedeco.javacpp.opencv_face.createLBPHFaceRecognizer;
 import static org.bytedeco.javacpp.opencv_imgcodecs.CV_LOAD_IMAGE_GRAYSCALE;
-import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
 import static org.bytedeco.javacpp.opencv_imgproc.CV_BGR2GRAY;
-import static org.bytedeco.javacpp.opencv_imgproc.cvResize;
-import static org.bytedeco.javacpp.opencv_imgproc.cvtColor;
 import org.bytedeco.javacpp.opencv_objdetect;
-import static org.bytedeco.javacpp.opencv_objdetect.CV_HAAR_DO_ROUGH_SEARCH;
-import static org.bytedeco.javacpp.opencv_objdetect.CV_HAAR_FIND_BIGGEST_OBJECT;
-import org.bytedeco.javacpp.opencv_objdetect.CascadeClassifier;
 import org.bytedeco.javacpp.opencv_objdetect.CvHaarClassifierCascade;
 import org.bytedeco.javacpp.opencv_videoio.VideoCapture;
 import org.bytedeco.javacv.Frame;
-import org.bytedeco.javacv.FrameConverter;
 import org.bytedeco.javacv.Java2DFrameConverter;
 import org.bytedeco.javacv.OpenCVFrameConverter;
 import static org.bytedeco.javacpp.opencv_core.cvCopy;
 import static org.bytedeco.javacpp.opencv_core.cvLoad;
-import static org.bytedeco.javacpp.opencv_face.createEigenFaceRecognizer;
-import static org.bytedeco.javacpp.opencv_face.createFisherFaceRecognizer;
 import static org.bytedeco.javacpp.opencv_face.createLBPHFaceRecognizer;
 import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
 import static org.bytedeco.javacpp.opencv_imgproc.cvResize;
-import static org.bytedeco.javacpp.opencv_imgproc.cvtColor;
+import static org.bytedeco.javacpp.opencv_objdetect.CV_HAAR_DO_ROUGH_SEARCH;
+import static org.bytedeco.javacpp.opencv_objdetect.CV_HAAR_FIND_BIGGEST_OBJECT;
 
 public class Programa extends JFrame implements ActionListener {
 
@@ -104,8 +85,10 @@ public class Programa extends JFrame implements ActionListener {
     private JCheckBox reconhece;
     private Map<Integer, String> imagens;
     private BufferedImage image2;
+    private String recoImage;
 
     private String lastImage = "NONE";
+    private double distancia;
 
     public Programa() {
         super("Face");
@@ -133,6 +116,7 @@ public class Programa extends JFrame implements ActionListener {
         initRecognizer();
         initCapture();
         initServer();
+        setAlwaysOnTop(true);
     }
 
     @Override
@@ -221,8 +205,10 @@ public class Programa extends JFrame implements ActionListener {
                     faceRecognizer.predict(m2, ib, db);
                     //faceRecognizer.
                     setTitle("" + db[0]);
+                    distancia = db[0];
                     labelImagem3.setIcon(new ImageIcon(imagens.get(ib[0])));
                     lastImage = "" + imagens.get(ib[0]);
+                    recoImage = imagens.get(ib[0]);
                 }
             }
             faces = null;
@@ -281,6 +267,7 @@ public class Programa extends JFrame implements ActionListener {
         IntBuffer labelsBuf = labels.createBuffer();
 
         for (File image : imageFiles) {
+
             Mat img = imread(image.getAbsolutePath(), CV_LOAD_IMAGE_GRAYSCALE);
             caras.put(counter, img);
             labelsBuf.put(counter, counter);
@@ -307,7 +294,8 @@ public class Programa extends JFrame implements ActionListener {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
             server.createContext("/id", new JsonHandler());
-            server.createContext("/image", new ImageHandler());
+            server.createContext("/image", new ImageHandler1());
+            server.createContext("/imagereco", new ImageHandler2());
             server.setExecutor(null); // creates a default executor
             server.start();
         } catch (IOException ex) {
@@ -319,7 +307,13 @@ public class Programa extends JFrame implements ActionListener {
 
         @Override
         public void handle(HttpExchange he) throws IOException {
-            String response = "{\"image\":\"" + lastImage + "\"}";
+            String id = lastImage.replaceAll("\\\\", "/");
+            id = id.substring(id.lastIndexOf("/") + 1).split("_")[0];
+            String response = "{"
+                    + "\"image\":\"" + lastImage + "\""
+                    + ",\"id\":\"" + id + "\""
+                    + ",\"distance\":\"" + distancia + "\""
+                    + "}";
             he.sendResponseHeaders(200, response.getBytes().length);
             OutputStream os = he.getResponseBody();
             os.write(response.getBytes());
@@ -327,16 +321,40 @@ public class Programa extends JFrame implements ActionListener {
         }
     }
 
-    class ImageHandler implements HttpHandler {
+    class ImageHandler1 implements HttpHandler {
 
         @Override
         public void handle(HttpExchange he) throws IOException {
-            ByteArrayOutputStream baos=new ByteArrayOutputStream();
-            ImageIO.write(image2, lastImage, baos);
-            he.getResponseHeaders().set("Content-Type","image/jpeg");
-            he.sendResponseHeaders(200, baos.size());
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image2, "JPG", baos);
+            baos.close();
+            System.out.println("----->" + baos.toByteArray().length);
+            he.getResponseHeaders().set("Content-Type", "image/jpeg");
+            he.sendResponseHeaders(200, 0);
             OutputStream os = he.getResponseBody();
             os.write(baos.toByteArray());
+            os.flush();
+            os.close();
+        }
+    }
+
+    class ImageHandler2 implements HttpHandler {
+
+        @Override
+        public void handle(HttpExchange he) throws IOException {
+            he.getResponseHeaders().set("Content-Type", "image/jpeg");
+            he.sendResponseHeaders(200, 0);
+            OutputStream os = he.getResponseBody();
+            FileInputStream fis = new FileInputStream(new File(recoImage));
+            byte buf[] = new byte[4096];
+            while (true) {
+                int r = fis.read(buf);
+                if (r == -1) {
+                    break;
+                }
+                os.write(buf, 0, r);
+            }
+            fis.close();
             os.flush();
             os.close();
         }
