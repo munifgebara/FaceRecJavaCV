@@ -204,7 +204,7 @@ public class Programa extends JFrame implements ActionListener {
                     double db[] = new double[1];
                     faceRecognizer.predict(m2, ib, db);
                     //faceRecognizer.
-                    setTitle("" + db[0]);
+                    setTitle("id="+imagens.get(ib[0])+" "+ db[0]);
                     distancia = db[0];
                     labelImagem3.setIcon(new ImageIcon(imagens.get(ib[0])));
                     lastImage = "" + imagens.get(ib[0]);
@@ -294,6 +294,7 @@ public class Programa extends JFrame implements ActionListener {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
             server.createContext("/id", new JsonHandler());
+            server.createContext("/pureid", new PureIdHandler());
             server.createContext("/image", new ImageHandler1());
             server.createContext("/imagereco", new ImageHandler2());
             server.setExecutor(null); // creates a default executor
@@ -314,6 +315,20 @@ public class Programa extends JFrame implements ActionListener {
                     + ",\"id\":\"" + id + "\""
                     + ",\"distance\":\"" + distancia + "\""
                     + "}";
+            he.sendResponseHeaders(200, response.getBytes().length);
+            OutputStream os = he.getResponseBody();
+            os.write(response.getBytes());
+            os.close();
+        }
+    }
+
+    class PureIdHandler implements HttpHandler {
+
+        @Override
+        public void handle(HttpExchange he) throws IOException {
+            String id = lastImage.replaceAll("\\\\", "/");
+            id = id.substring(id.lastIndexOf("/") + 1).split("_")[0];
+            String response = id;
             he.sendResponseHeaders(200, response.getBytes().length);
             OutputStream os = he.getResponseBody();
             os.write(response.getBytes());
